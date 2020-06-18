@@ -27,45 +27,58 @@ Rectangle {
 
         propagateComposedEvents: true
 
-        Canvas {
-            id: canvas
-            width:  polygon.width
-            height: polygon.height
+        Repeater {
+            id: repeater
+            model: polygon.points.length
 
-            property color color: Qt.rgba(0, 0, 0)
+            Canvas {
+                id: canvas
+                width:  polygon.width
+                height: polygon.height
 
-            onPaint: {
-                let brush = getContext("2d");
+                property color color: Qt.rgba(0, 0, 0)
 
-                brush.lineWidth = 2;
-                brush.strokeStyle = canvas.color;
+                onPaint: {
+                    if (index >= 0)
+                    {
+                        let brush = getContext("2d");
+                        brush.lineWidth = 2;
+                        brush.strokeStyle = canvas.color;
 
-                brush.globalAlpha = 0.2;
+                        brush.clearRect(0, 0, canvas.width, canvas.height);
+                        brush.globalAlpha = 0.2;
 
-                brush.beginPath();
-                brush.moveTo(polygon.points[0].x * polygon.widthScale  - polygon.x + polygon.borderIndent,
-                             polygon.points[0].y * polygon.heightScale - polygon.y + polygon.borderIndent);
+                        brush.beginPath();
 
-                for (let i = 1; i < polygon.points.length; ++i)
-                    brush.lineTo(polygon.points[i].x * polygon.widthScale  - polygon.x + polygon.borderIndent,
-                                 polygon.points[i].y * polygon.heightScale - polygon.y + polygon.borderIndent);
+                        let i = index;
+                        let j = (index + 1 === repeater.model ? 0 : index + 1);
 
-                brush.closePath();
-                brush.stroke();
+                        let Xi = polygon.points[i].x * polygon.widthScale - polygon.x;
+                        let Yi = polygon.points[i].y * polygon.heightScale - polygon.y;
+
+                        let Xj = polygon.points[j].x * polygon.widthScale - polygon.x;
+                        let Yj = polygon.points[j].y * polygon.heightScale - polygon.y;
+
+                        brush.moveTo(Xi, Yi);
+                        brush.lineTo(Xj, Yj);
+
+                        brush.stroke();
+                    }
+                }
+
+                onColorChanged: {
+                    canvas.requestPaint();
+                }
             }
-
-            onColorChanged: {
-                canvas.requestPaint();
-            }
-
         }
 
         onClicked: {
+            console.log(mouseX, mouseY);
             mouse.accepted = false;
             polygon.clicked();
         }
 
-        SequentialAnimation {
+/*        SequentialAnimation {
             id: gradient
             running: true
             loops: Animation.Infinite
@@ -94,20 +107,20 @@ Rectangle {
                 duration: 2000
             }
         }
-
+*/
         SequentialAnimation {
             id: disappear
             running: false
 
             ScaleAnimator {
-                target: canvas
+                target: polygon
                 from: 1
                 to:   1.4
                 duration: 350
             }
 
             ScaleAnimator {
-                target: canvas
+                target: polygon
                 from: 1.4
                 to:   0
                 duration: 700
