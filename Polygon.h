@@ -17,6 +17,13 @@ public:
     Polygon();
 
     Polygon& operator=(const Polygon& polygon);
+
+    QPoint getOffset() const;
+    void setOffset(QPoint);
+    void setOffset(int, int);
+
+private:
+    QPoint m_offset;
 };
 
 #endif // POLYGON_H

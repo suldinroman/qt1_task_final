@@ -32,7 +32,8 @@ public:
         BoundingRectRole = Qt::UserRole + 1,
         PointsRole,
         ContainsPointRole,
-        RemainingTimeRole
+        RemainingTimeRole,
+        OffsetRole
     };
 
     Q_ENUM(GetData);
@@ -42,6 +43,8 @@ public:
     Q_PROPERTY(int maxSizeRange MEMBER m_maxSizeRange NOTIFY maxSizeRangeChanged)
     Q_PROPERTY(int lifespan     MEMBER m_lifespan     NOTIFY lifespanChanged)
 
+    Q_PROPERTY(QVector<QPoint> polygonSeed MEMBER m_polygonSeed NOTIFY polygonSeedChanged)
+
     Q_PROPERTY(int minimumWindowWidth  MEMBER m_minimumWindowWidth)
     Q_PROPERTY(int minimumWindowHeight MEMBER m_minimumWindowHeight)
 
@@ -50,6 +53,8 @@ signals:
     void minSizeRangeChanged();
     void maxSizeRangeChanged();
     void lifespanChanged();
+
+    void polygonSeedChanged();
 
     void restart();
 
@@ -62,7 +67,7 @@ private slots:
 
 private:
     double randomReal(double min, double max);
-    QPolygon generatePolygon();
+    QPolygon generatePolygon(int index);
 
     void beginReconnect();
     void endReconnect();
@@ -71,6 +76,8 @@ private:
     int m_minSizeRange;
     int m_maxSizeRange;
     int m_lifespan;
+
+    QVector<QPoint> m_polygonSeed;
 
     int m_minimumWindowWidth;
     int m_minimumWindowHeight;

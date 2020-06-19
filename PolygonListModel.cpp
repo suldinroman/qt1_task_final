@@ -1,8 +1,7 @@
 #include <QtMath>
 #include "PolygonListModel.h"
 
-const double SIZE_FACTOR_MIN = 21.6640204041598;
-const double SIZE_FACTOR_MAX = 43.3280408083196;
+#include <iostream>
 
 PolygonListModel::PolygonListModel(QObject *parent):
     QAbstractListModel(parent), m_quantity(0), m_minSizeRange(0), m_maxSizeRange(0), m_lifespan(0),
@@ -36,6 +35,9 @@ QVariant PolygonListModel::data(const QModelIndex &index, int role) const
         case GetData::RemainingTimeRole:
             return m_polygons[index.row()].remainingTime();
 
+        case GetData::OffsetRole:
+            return m_polygons[index.row()].getOffset();
+
         default:
             return QVariant();
         }
@@ -62,8 +64,10 @@ bool PolygonListModel::insertRows(int row, int count, const QModelIndex &parent)
     beginReconnect();
     for (int i = 0; i < count; ++i)
     {
-        m_polygons.insert(row + i, generatePolygon());
+        m_polygons.insert(row + i, generatePolygon(i));
+        m_polygons[row + i].setOffset(randomReal(0, m_minimumWindowWidth), randomReal(0, m_minimumWindowHeight));
         m_polygons[row + i].setInterval(m_lifespan);
+
     }
     endReconnect();
     endInsertRows();
@@ -120,25 +124,62 @@ double PolygonListModel::randomReal(double min, double max)
     return realDistributon(m_randomEngine);
 }
 
-QPolygon PolygonListModel::generatePolygon()
+double angleBetween(QPoint p1, QPoint p2)
+{
+    double numenator = p1.x() * p2.x() + p1.y() * p2.y();
+    double denominator = sqrt(p1.x() * p1.x() + p1.y() * p1.y()) * sqrt(p2.x() * p2.x() + p2.y() * p2.y());
+    double angle = qAcos(numenator / denominator);
+    return angle * 57.3;
+}
+
+double determinant(QPoint p1, QPoint p2)
+{
+    return p1.x() * p2.y() - p2.x() * p1.y();
+}
+
+QPolygon PolygonListModel::generatePolygon(int index)
 {
     QPolygon polygon;
+    QVector<QPoint> generatedPoints;
 
     int sides = randomReal(m_minSizeRange, m_maxSizeRange);
-    int angle = randomReal(0, 360);
 
-    int offsetX = randomReal(0, m_minimumWindowWidth);
-    int offsetY = randomReal(0, m_minimumWindowHeight);
-
-    double sizeFactor = randomReal(SIZE_FACTOR_MIN, SIZE_FACTOR_MAX);
-
-    for (int i = 0; i < sides; ++i)
+    if (m_polygonSeed.empty())
+        for (int i = 0; i < sides; ++i)
+            generatedPoints.push_back(QPoint(randomReal(0, 100), randomReal(0, 100)));
+    else
     {
-        double pointFactor = randomReal(0, 360 / sides) - 360 / sides / 2;
-        int X = -cos((angle + 360 / sides * i + pointFactor) * M_PI / 180) * sizeFactor + offsetX;
-        int Y = -sin((angle + 360 / sides * i + pointFactor) * M_PI / 180) * sizeFactor + offsetY;
-        polygon.push_back(QPoint(X, Y));
+        polygon.push_back(m_polygonSeed[index]);
+        polygon.push_back(m_polygonSeed[index + 1 == m_polygonSeed.size() ? 0 : index + 1]);
+
+        for (int i = 0; i < sides - 2; ++i)
+            generatedPoints.push_back(QPoint(randomReal(0, 100), randomReal(0, 100)));
     }
+
+    polygon.push_back(generatedPoints[0]);
+    generatedPoints.remove(generatedPoints.indexOf(generatedPoints[0]));
+
+    while (!generatedPoints.empty())
+    {
+        QVector<QPoint>::iterator selectedPoint = selectedPoint = generatedPoints.begin();
+
+        for (auto i = generatedPoints.begin(); i != generatedPoints.end(); ++i)
+            if (determinant(polygon.back(), *i) < 0)
+            {
+                selectedPoint = i;
+                break;
+            }
+
+        for (auto i = generatedPoints.begin(); i != generatedPoints.end(); ++i)
+            if (i != selectedPoint)
+                if (angleBetween(polygon.back(), *selectedPoint) > angleBetween(polygon.back(), *i))
+                    if (determinant(polygon.back(), *i) < 0)
+                        selectedPoint = i;
+
+        polygon.push_back(*selectedPoint);
+        generatedPoints.remove(generatedPoints.indexOf(*selectedPoint));
+    }
+
     return polygon;
 }
 
