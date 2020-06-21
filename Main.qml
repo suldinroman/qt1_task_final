@@ -5,6 +5,7 @@ import QtQuick.Controls 2.14
 
 import PolygonListModel 1.0
 
+
 Window {
     id: window
     minimumWidth:  800
@@ -18,7 +19,7 @@ Window {
         minimumWindowHeight: window.minimumHeight
 
         onTimerTriggered: {
-            repeater.itemAt(index).removeThis();
+            delegate.itemAt(index).removeThis();
         }
 
         onRestart: {
@@ -27,7 +28,7 @@ Window {
     }
 
     Repeater {
-        id: repeater
+        id: delegate
         model: polygonListModel
 
         property bool idleAnimationRunning: false
@@ -35,45 +36,79 @@ Window {
 
         Polygon {
             id: polygon
-            width:  boundingRect.width  * polygon.widthScale  + polygon.borderIndent
-            height: boundingRect.height * polygon.heightScale + polygon.borderIndent
-            x: boundingRect.x * polygon.widthScale
-            y: boundingRect.y * polygon.heightScale
+            width:  polygon.boundingRect.width
+            height: polygon.boundingRect.height
+            x: polygon.offset.x
+            y: polygon.offset.y
 
             points: polygonListModel.data(polygonListModel.index(index, 0), PolygonListModel.PointsRole)
 
-            idleAnimationRunning: repeater.idleAnimationRunning
-            idleAnimationPaused: repeater.idleAnimationPaused
+            idleAnimationRunning: delegate.idleAnimationRunning
+            idleAnimationPaused: delegate.idleAnimationPaused
 
-            widthScale:  window.width  / window.minimumWidth
-            heightScale: window.height / window.minimumHeight
-
-            property rect boundingRect: {
-                if (index >= 0)
-                    return polygonListModel.data(polygonListModel.index(index, 0), PolygonListModel.BoundingRectRole);
-                else
-                    return Qt.rect(0, 0, 0, 0);
-            }
+            property rect boundingRect: polygonListModel.data(polygonListModel.index(index, 0), PolygonListModel.BoundingRectRole)
+            property point offset: polygonListModel.data(polygonListModel.index(index, 0), PolygonListModel.OffsetRole)
 
             onClicked: {
-                let mousePosition = Qt.point(mouseArea.mouseX / polygon.widthScale, mouseArea.mouseY / polygon.heightScale);
+                let mousePosition = Qt.point(mouseArea.mouseX - polygon.x + polygon.calibration.x,
+                                             mouseArea.mouseY - polygon.y + polygon.calibration.y);
+
                 if(polygonListModel.containsPoint(polygonListModel.index(index, 0), mousePosition))
                 {
-                    polygonListModel.timerStop(index);
-                    polygon.isClicked = true;
                     polygon.removeThis();
+
+                    polygonListModel.timerStop(index);
+                    polygonListModel.polygonSeed = polygon.points;
+                    polygonListModel.insertRows(polygonListModel.rowCount(), polygon.points.length);
+
+                    repeater.polygonIndex  = index;
+                    repeater.polygonOffset = polygon.offset;
+                    repeater.polygonBoundingRect = polygon.boundingRect;
+                    repeater.model = polygon.points.length;
+
+                    mouseArea.enabled = false;
                 }
             }
 
-            onDisappearAnimationStarted: {
+            onAppearAnimationFinished: {
+                repeater.model = 0;
 
+                mouseArea.enabled = true;
             }
+        }
+    }
 
-            onDisappearAnimationFinished: {
-                if (polygon.isClicked)
-                    polygonListModel.insertRows(polygonListModel.rowCount(), polygon.points.length);
+    Repeater {
+        id: repeater
+        model: 0
 
-                polygonListModel.removeRows(index);
+        property int polygonIndex: -1
+        property point polygonOffset: Qt.point(0, 0)
+        property rect polygonBoundingRect: Qt.rect(0, 0, 0, 0)
+
+        property int movingAnimationFinishedCounter: 0
+
+        Line {
+            id: line
+            x: repeater.polygonOffset.x
+            y: repeater.polygonOffset.y
+            width:  delegate.itemAt(polygonListModel.rowCount() - repeater.model + index).boundingRect.width
+            height: delegate.itemAt(polygonListModel.rowCount() - repeater.model + index).boundingRect.height
+
+            points: [polygonListModel.polygonSeed[index], polygonListModel.polygonSeed[index + 1 === repeater.model ? 0 : index + 1]];
+            destination: polygonListModel.data(polygonListModel.index(polygonListModel.rowCount() - repeater.model + index, 0), PolygonListModel.OffsetRole);
+            calibration: delegate.itemAt(polygonListModel.rowCount() - repeater.model + index).calibration
+
+            lineColor: delegate.itemAt(repeater.polygonIndex).lineColor
+
+            onMovingAnimationFinished: {
+                if (++repeater.movingAnimationFinishedCounter === repeater.model)
+                {
+                    for (let i = 0; i < repeater.model; ++i)
+                        delegate.itemAt(polygonListModel.rowCount() - repeater.model + i).paintThis();
+                    polygonListModel.removeRows(repeater.polygonIndex);
+                    repeater.movingAnimationFinishedCounter = 0;
+                }
             }
         }
     }
@@ -103,7 +138,7 @@ Window {
         LineEdit {
             id: lineEditQuantity
             labelText: "quantity:"
-            text: "10"
+            text: "3"
         }
 
         LineEdit {
@@ -117,14 +152,14 @@ Window {
             id: lineEditMaxSizeRange
             labelText: "maxSizeRange:"
             minValue: lineEditMinSizeRange.text
-            text: "8"
+            text: "5"
         }
 
         LineEdit {
             id: lineEditLifespan
             labelText: "lifespan:"
             maxValue: 99999
-            text: "7000"
+            text: "70000"
         }
 
         Button {
@@ -182,6 +217,8 @@ Window {
 
             onFinished: {
                 mouseArea.enabled = true;
+                for (let i = 0; i < polygonListModel.rowCount(); ++i)
+                    delegate.itemAt(i).paintThis();
             }
         }
     }
@@ -190,12 +227,12 @@ Window {
         id: shortcutAltP
         sequence: "Alt+P"
         onActivated: {
-            if (repeater.idleAnimationRunning)
+            if (delegate.idleAnimationRunning)
             {
-                if (repeater.idleAnimationPaused)
-                    repeater.idleAnimationPaused = false;
+                if (delegate.idleAnimationPaused)
+                    delegate.idleAnimationPaused = false;
                 else
-                    repeater.idleAnimationPaused = true;
+                    delegate.idleAnimationPaused = true;
             }
         }
     }
@@ -204,10 +241,10 @@ Window {
         id: shortcutAltR
         sequence: "Alt+R"
         onActivated: {
-            if (repeater.idleAnimationRunning)
-                repeater.idleAnimationRunning = false;
+            if (delegate.idleAnimationRunning)
+                delegate.idleAnimationRunning = false;
             else
-                repeater.idleAnimationRunning = true;
+                delegate.idleAnimationRunning = true;
         }
     }
 }

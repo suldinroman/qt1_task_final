@@ -3,5 +3,7 @@
         <file>Main.qml</file>
         <file>Polygon.qml</file>
         <file>LineEdit.qml</file>
+        <file>Algorithm.js</file>
+        <file>Line.qml</file>
     </qresource>
 </RCC>
